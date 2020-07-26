@@ -18,6 +18,7 @@ git clone https://github.com/alexomics/depot_dash.git
 cd depot_dash
 python3 -m venv venv
 source venv/bin/activate
+pip install -U pip -r requirements.txt
 cd ..
 bokeh serve --show depot_dash
 ```
