@@ -84,16 +84,17 @@ def plot_heat():
 
     colors = [
         "#ffffe0",
-        "#e1edc8",
-        "#c7dbaf",
-        "#b1c898",
-        "#a0b481",
-        "#949f6a",
-        "#8d8953",
-        "#8d713e",
-        "#935228",
-        "#a50f15",
+        "#e0f2b4",
+        "#c5e391",
+        "#b0d374",
+        "#a2c05e",
+        "#9dac4c",
+        "#9f9540",
+        "#a67a38",
+        "#b35933",
+        "#c31432",
     ]
+
     mapper = LinearColorMapper(palette=colors, low=0, high=100)
 
     p = figure(
@@ -104,6 +105,7 @@ def plot_heat():
         plot_width=700,
         plot_height=550,
         toolbar_location=None,
+        active_drag=None,
         tooltips=[
             ("day, hour", "@day @hour:00-@hour:59"),
             ("% capacity used", "@pc_capacity%"),
