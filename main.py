@@ -31,6 +31,15 @@ def update_date(attr, old, new):
     plots.children[0] = plot_line()
 
 
+def update():
+    global DF
+    DF = load_data()
+    plots.children[0] = plot_line()
+    plots.children[1] = plot_heat()
+    reload_str = f"Dataset last loaded <i>{datetime.now().strftime('%Y-%m-%d %H:%M')}</i>"
+    last_refresh.update(text=reload_str)
+
+
 def reload_counter(new):
     _iframe.update(text="")
     _iframe.update(text=IFRAME)
@@ -38,7 +47,7 @@ def reload_counter(new):
 
 def load_data():
     df = pd.read_csv(
-        DATASET,
+        REMOTE_DATASET,
         sep="\t",
         parse_dates=["update_time", "scrape_time"],
         dtype={"gym": "category"},
@@ -143,10 +152,10 @@ def plot_heat():
 
 
 DATA_DIR = Path(__file__).parent.joinpath("data")
-DATASET = DATA_DIR.joinpath('dataset.tsv.gz')
+DATASET = DATA_DIR.joinpath('dataset.tsv.xz')
 HASH = sha256sum(DATASET)
-REMOTE_DATASET = "https://raw.githubusercontent.com/alexomics/depot_dash/master/data/dataset.tsv.gz"
-REMOTE_SHA256 = "https://raw.githubusercontent.com/alexomics/depot_dash/master/data/dataset.tsv.gz.sha256"
+REMOTE_DATASET = "https://raw.githubusercontent.com/alexomics/depot_dash/master/data/dataset.tsv.xz"
+REMOTE_SHA256 = "https://raw.githubusercontent.com/alexomics/depot_dash/master/data/dataset.tsv.xz.sha256"
 REMOTE_HASH = get_remote_hash(REMOTE_SHA256)
 
 DAYS_MAP = {
@@ -158,7 +167,6 @@ DAYS_MAP = {
     5: "Saturday",
     6: "Sunday",
 }
-TODAY = datetime.now().date().isoformat()
 GYM = "Depot Nottingham"
 IFRAME = (
     "<iframe id='occupancyCounter' "
@@ -174,11 +182,14 @@ D_MAX = DF["scrape_time"].max().date()
 WEEKS = math.ceil((D_MAX - D_MIN).days / 7)
 PLURAL = {1:""}.get(WEEKS, "s")
 
-gyms = Select(title="Gym:", value=GYM, options=GYMS)
+gyms = Select(value=GYM, options=GYMS)
 gyms.on_change("value", update_gym)
 
-date = DatePicker(title="Day:", value=TODAY, min_date=str(D_MIN), max_date=str(D_MAX))
+date = DatePicker(value=str(D_MAX), min_date=str(D_MIN), max_date=str(D_MAX))
 date.on_change("value", update_date)
+
+reload_str = f"Dataset last loaded <i>{datetime.now().strftime('%Y-%m-%d %H:%M')}</i>"
+last_refresh = Div(text=reload_str)
 
 reload_btn = Button(label="Reload Counter", button_type="primary")
 reload_btn.on_click(reload_counter)
@@ -191,7 +202,7 @@ dataset_info = Div(text=INFO_TEXT)
 
 extras = row(column(_iframe), column(dataset_info), column(reload_btn))
 
-drops = row(gyms, date)
+drops = row(gyms, date, last_refresh)
 plots = row(plot_line(), plot_heat())
 
 tabs = Tabs(
@@ -204,3 +215,5 @@ tabs = Tabs(
 l = row(tabs)
 curdoc().add_root(l)
 curdoc().title = "Depot Climbing Gym Dashboard"
+curdoc().add_periodic_callback(update, 300000)  # 5 minute update
+
