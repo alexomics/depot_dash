@@ -1,5 +1,5 @@
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -14,10 +14,14 @@ from bokeh.models import (
     DatePicker,
     BasicTicker,
     ColorBar,
+    LinearAxis,
     LinearColorMapper,
     PrintfTickFormatter,
+    HoverTool,
 )
 from bokeh.plotting import curdoc, figure
+from bokeh.palettes import Colorblind7 as week_palette
+from bokeh.palettes import RdYlGn9 as deciles_palette
 
 from .helpers import sha256sum, get_remote_hash
 
@@ -25,10 +29,12 @@ from .helpers import sha256sum, get_remote_hash
 def update_gym(attr, old, new):
     plots.children[0] = plot_line()
     plots.children[1] = plot_heat()
+    plot2.children[0] = plot_week_line()
 
 
 def update_date(attr, old, new):
     plots.children[0] = plot_line()
+    plot2.children[0] = plot_week_line()
 
 
 def update():
@@ -36,6 +42,7 @@ def update():
     DF = load_data()
     plots.children[0] = plot_line()
     plots.children[1] = plot_heat()
+    plot2.children[0] = plot_week_line()
     reload_str = f"Dataset last loaded <i>{datetime.now().strftime('%Y-%m-%d %H:%M')}</i>"
     last_refresh.update(text=reload_str)
 
@@ -47,9 +54,12 @@ def reload_counter(new):
 
 def load_data():
     df = pd.read_csv(
-        REMOTE_DATASET,
+        DATASET,
         sep="\t",
-        parse_dates=["update_time", "scrape_time"],
+        # names=["gym", "count", "capacity", "update_time", "scrape_time"],
+        # parse_dates=["update_time", "scrape_time"],
+        names=["gym", "count", "capacity", "scrape_time"],
+        parse_dates=["scrape_time"],
         dtype={"gym": "category"},
     )
 
@@ -57,6 +67,7 @@ def load_data():
     df["hour"] = df["scrape_time"].dt.hour.astype("str").str.zfill(2)
     df["pc_capacity"] = df["count"] / df["capacity"] * 100
     df["nice_time"] = df["scrape_time"].dt.strftime("%H:%M")
+    df["norm_time"] = pd.to_datetime(df["nice_time"], format="%H:%M")
     df["nice_date"] = df["scrape_time"].dt.strftime("%Y-%m-%d")
     return df
 
@@ -74,9 +85,53 @@ def plot_line():
         plot_width=550,
         plot_height=550,
     )
+    p.line(x=df["scrape_time"], y=df["capacity"], line_width=2, color="red")
     p.line(x="scrape_time", y="count", source=df, line_width=1)
-    p.line(x=df["scrape_time"], y=df["capacity"], line_width=3, color="red")
     p.toolbar.logo = None
+    return p
+
+
+def plot_week_line():
+    dt = datetime.strptime(date.value, "%Y-%m-%d")
+    days = [datetime.strftime(dt - timedelta(days=dx), "%Y-%m-%d") for dx in range(7)]
+    df = DF[DF["gym"].eq(gyms.value) & DF["nice_date"].isin(days)]
+    w_min = df["scrape_time"].min().date()
+    w_max = df["scrape_time"].max().date()
+
+    p = figure(
+        title=f"{gyms.value} - {w_min} to {w_max}",
+        x_axis_label="Time",
+        y_axis_label="No of Climbers",
+        x_axis_type="datetime",
+        tools="xbox_zoom,xpan,reset,save",
+        plot_width=1230,
+        plot_height=550,
+    )
+    p.line(x=df["norm_time"], y=df["capacity"], line_width=2, color="red")
+    lines = []
+    for (name, group), colour in zip(df.groupby("nice_date"), week_palette):
+        lines.append(
+            p.line(
+                x="norm_time", 
+                y="count", 
+                source=group, 
+                line_width=2, 
+                color=colour,
+                alpha=0.8, 
+                legend_label=name,
+                muted_color=colour,
+                muted_alpha=0.1,
+            )
+        )
+    p.toolbar.logo = None
+    p.legend.location = "top_left"
+    p.legend.click_policy="mute"
+    hover = HoverTool(
+        tooltips=[("day", "@day"), ("time", "@nice_time"), ("# climbers", "@count")],
+        renderers=lines,
+    )
+    p.add_tools(hover)
+    # p.hover.mode = "vline"
     return p
 
 
@@ -103,6 +158,7 @@ def plot_heat():
         "#b35933",
         "#c31432",
     ]
+    # colors = list(deciles_palette) + ["#a50026"]
 
     mapper = LinearColorMapper(palette=colors, low=0, high=100)
 
@@ -152,7 +208,7 @@ def plot_heat():
 
 
 DATA_DIR = Path(__file__).parent.joinpath("data")
-DATASET = DATA_DIR.joinpath('dataset.tsv.xz')
+DATASET = DATA_DIR.joinpath('dataset.tsv')
 HASH = sha256sum(DATASET)
 REMOTE_DATASET = "https://raw.githubusercontent.com/alexomics/depot_dash/master/data/dataset.tsv.xz"
 REMOTE_SHA256 = "https://raw.githubusercontent.com/alexomics/depot_dash/master/data/dataset.tsv.xz.sha256"
@@ -194,20 +250,21 @@ last_refresh = Div(text=reload_str)
 reload_btn = Button(label="Reload Counter", button_type="primary")
 reload_btn.on_click(reload_counter)
 _iframe = Div(text=IFRAME)
-INFO_TEXT = f"""Dataset file: <pre>{DATASET}</pre>
-    <br>Remote file: <pre>{REMOTE_DATASET}</pre>
-    <br>Hashes: <pre>{HASH}<br>{REMOTE_HASH}</pre>
-    <br>If the hashes do not match the dataset has been updated on GitHub"""
+INFO_TEXT = f"""Dataset file: <pre>{DATASET}</pre>"""
+#     <br>Remote file: <pre>{REMOTE_DATASET}</pre>
+#     <br>Hashes: <pre>{HASH}<br>{REMOTE_HASH}</pre>
+#     <br>If the hashes do not match the dataset has been updated on GitHub"""
 dataset_info = Div(text=INFO_TEXT)
 
 extras = row(column(_iframe), column(dataset_info), column(reload_btn))
 
 drops = row(gyms, date, last_refresh)
 plots = row(plot_line(), plot_heat())
+plot2 = row(plot_week_line())
 
 tabs = Tabs(
     tabs=[
-        Panel(child=column(drops, plots), title="Historic Data"),
+        Panel(child=column(drops, plots, plot2), title="Historic Data"),
         Panel(child=extras, title="Extras"),
     ]
 )
