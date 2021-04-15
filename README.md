@@ -1,7 +1,7 @@
 depot dashboard
 ---
 
-This is a simple bokeh dashboard showing the historical capacity data for 
+This is an interactive (but static) dashboard showing capacity data for 
 [Depot Climbing](https://www.theclimbingdepot.co.uk/) gyms. 
 
 
@@ -19,6 +19,17 @@ cd depot_dash
 python3 -m venv venv
 source venv/bin/activate
 pip install -U pip -r requirements.txt
-cd ..
-bokeh serve --show depot_dash
+python static.py
+python -m http.server 5007
+```
+
+## Getting Data
+
+Example crontab settings:
+
+```cron
+# https://crontab.guru/#00-59/5_6-22_*_*_*
+00-59/5 6-22 * * * /path/to/venv/bin/python /path/to/scrape.py /path/to/output.tsv
+# https://crontab.guru/#1_23_*_*_*
+1 23 * * * /path/to/venv/bin/python /path/to/scrape.py /path/to/output.tsv
 ```

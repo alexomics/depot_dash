@@ -1,2 +1,2 @@
-bokeh
-pandas
+bokeh==2.2.0
+pandas==1.2.3

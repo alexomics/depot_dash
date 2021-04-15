@@ -175,9 +175,9 @@ GYMS = [
     "Big Depot Leeds",
     "Depot Climbing Sheffield",
 ]
-reload_str = f"Page last updated: <i>{datetime.now().strftime('%Y-%m-%d %H:%M')}</i>"
+reload_str = f"<a href='index.html'>Gym selector</a> Page last updated: <i>{datetime.now().strftime('%Y-%m-%d %H:%M')}</i>"
 
-tabs = []
+tabs = ["<html>", "<head>", "<title>Depot Capacity Report</title>", "</head>", "<body>", "<h1>Gyms:</h1>", "<ul>"]
 
 for gym in GYMS:
     df = DF[DF["gym"].eq(gym)]
@@ -186,12 +186,14 @@ for gym in GYMS:
     line = plot_week(df, gym)
     col = column(last_refresh, heat, line)
     col.sizing_mode = "scale_both"
-    tabs.append(Panel(child=col, title=gym))
-    break  # Only care about Notts for now
+
+    fn = gym.replace(" ", "_").lower() + ".html"
+    output_file(filename=fn, title=f"Depot Capacity Report - {gym}")
+    save(col, filename=fn)
+    tabs.append(f"<li><a href='{fn}'>{gym}</a></li>")
 
 
-lay = Tabs(tabs=tabs)
-lay.sizing_mode = "scale_both"
+tabs.extend(["</ul>", "</body>", "</html>"])
+with open("index.html", "w") as fh:
+    fh.write("\n".join(tabs))
 
-output_file(filename="index.html", title="Depot Capacity Report")
-save(lay, filename="index.html")
